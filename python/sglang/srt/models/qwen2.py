@@ -229,6 +229,7 @@ class Qwen2Model(nn.Module):
         self.embed_tokens = VocabParallelEmbedding(
             config.vocab_size,
             config.hidden_size,
+            quant_config=quant_config,
         )
         self.layers = nn.ModuleList(
             [

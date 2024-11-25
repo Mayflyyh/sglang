@@ -18,6 +18,7 @@ limitations under the License.
 import contextlib
 import os
 import warnings
+from pathlib import Path
 from typing import Dict, Optional, Type, Union
 
 from huggingface_hub import snapshot_download
@@ -31,7 +32,9 @@ from transformers import (
 )
 
 try:
+    from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
     from vllm.transformers_utils.configs import ChatGLMConfig, DbrxConfig
+    from vllm.transformers_utils.utils import check_gguf_file
 
     from sglang.srt.configs import ExaoneConfig, Qwen2VLConfig
 
@@ -63,9 +66,24 @@ def get_config(
     revision: Optional[str] = None,
     model_override_args: Optional[dict] = None,
 ):
-    config = AutoConfig.from_pretrained(
-        model, trust_remote_code=trust_remote_code, revision=revision
-    )
+    is_gguf = check_gguf_file(model)
+    if is_gguf:
+        gguf_file = Path(model).name
+        model = Path(model).parent
+        config = AutoConfig.from_pretrained(
+            model,
+            trust_remote_code=trust_remote_code,
+            revision=revision,
+            gguf_file=gguf_file,
+        )
+        if config.model_type not in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+            raise RuntimeError(f"Can't get gguf config for {config.model_type}.")
+        model_type = MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[config.model_type]
+        config.update({"architectures": [model_type]})
+    else:
+        config = AutoConfig.from_pretrained(
+            model, trust_remote_code=trust_remote_code, revision=revision
+        )
     if config.model_type in _CONFIG_REGISTRY:
         config_class = _CONFIG_REGISTRY[config.model_type]
         config = config_class.from_pretrained(model, revision=revision)
@@ -124,6 +142,12 @@ def get_tokenizer(
         if kwargs.get("use_fast", False):
             raise ValueError("Cannot use the fast tokenizer in slow tokenizer mode.")
         kwargs["use_fast"] = False
+
+    # Separate model folder from file path for GGUF models
+    is_gguf = check_gguf_file(tokenizer_name)
+    if is_gguf:
+        kwargs["gguf_file"] = Path(tokenizer_name).name
+        tokenizer_name = Path(tokenizer_name).parent
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(

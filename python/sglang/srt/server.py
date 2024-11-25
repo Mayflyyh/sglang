@@ -76,6 +76,7 @@ from sglang.srt.utils import (
     add_api_key_middleware,
     add_prometheus_middleware,
     assert_pkg_version,
+    check_gguf_file,
     configure_logger,
     delete_directory,
     is_port_available,
@@ -380,6 +381,9 @@ def launch_engine(
     server_args.model_path, server_args.tokenizer_path = prepare_model_and_tokenizer(
         server_args.model_path, server_args.tokenizer_path
     )
+
+    if check_gguf_file(server_args.model_path):
+        server_args.quantization = server_args.load_format = "gguf"
 
     if server_args.dp_size == 1:
         # Launch tensor parallel scheduler processes

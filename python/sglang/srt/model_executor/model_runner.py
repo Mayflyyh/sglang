@@ -262,6 +262,29 @@ class ModelRunner:
                 self.model_config.model_override_args
             )
 
+        from vllm.model_executor.layers.quantization.base_config import (
+            QuantizeMethodBase,
+        )
+        from vllm.model_executor.layers.quantization.gguf import (
+            GGUFConfig,
+            GGUFEmbeddingMethod,
+            GGUFLinearMethod,
+        )
+
+        from sglang.srt.layers.linear import LinearBase
+        from sglang.srt.layers.vocab_parallel_embedding import VocabParallelEmbedding
+
+        def _get_quant_method(
+            self, layer: torch.nn.Module, prefix: str
+        ) -> Optional["QuantizeMethodBase"]:
+            if isinstance(layer, LinearBase):
+                return GGUFLinearMethod(self)
+            elif isinstance(layer, VocabParallelEmbedding):
+                return GGUFEmbeddingMethod(self)
+            return None
+
+        setattr(GGUFConfig, "get_quant_method", _get_quant_method)
+
         # Load the model
         self.model = get_model(
             model_config=self.vllm_model_config,

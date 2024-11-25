@@ -23,6 +23,7 @@ import torch
 from torch import nn
 from transformers import LlamaConfig
 from vllm.distributed import get_tensor_model_parallel_world_size
+from vllm.model_executor.layers.quantization.gguf import GGUFConfig
 from vllm.model_executor.layers.rotary_embedding import get_rope
 from vllm.model_executor.model_loader.weight_utils import default_weight_loader
 
@@ -255,6 +256,7 @@ class LlamaModel(nn.Module):
         self.embed_tokens = VocabParallelEmbedding(
             config.vocab_size,
             config.hidden_size,
+            quant_config=quant_config,
         )
         self.layers = nn.ModuleList(
             [
@@ -317,9 +319,14 @@ class LlamaForCausalLM(nn.Module):
     ) -> LogitsProcessorOutput:
         hidden_states = self.model(input_ids, positions, forward_batch, input_embeds)
         if not get_embedding:
-            return self.logits_processor(
-                input_ids, hidden_states, self.lm_head.weight, forward_batch
-            )
+            if isinstance(self.quant_config, GGUFConfig):
+                return self.logits_processor(
+                    input_ids, hidden_states, self.lm_head.qweight, forward_batch
+                )
+            else:
+                return self.logits_processor(
+                    input_ids, hidden_states, self.lm_head.weight, forward_batch
+                )
         else:
             return self.pooler(hidden_states, forward_batch)
 

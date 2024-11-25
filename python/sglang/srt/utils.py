@@ -821,3 +821,9 @@ def get_nvgpu_memory_capacity():
 def crash_on_warnings():
     # Crash on warning if we are running CI tests
     return os.getenv("SGLANG_IS_IN_CI", "false") == "true"
+
+
+def check_gguf_file(model: Union[str, os.PathLike]) -> bool:
+    from vllm.transformers_utils.utils import check_gguf_file
+
+    return check_gguf_file(model)
