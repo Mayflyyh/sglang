@@ -262,6 +262,7 @@ class ChatCompletionRequest(BaseModel):
     logit_bias: Optional[Dict[str, float]] = None
     logprobs: bool = False
     top_logprobs: Optional[int] = None
+    sampled_probs: bool = False
     max_tokens: Optional[int] = None
     n: int = 1
     presence_penalty: float = 0.0

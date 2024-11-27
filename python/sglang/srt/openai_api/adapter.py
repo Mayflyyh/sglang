@@ -851,6 +851,7 @@ def v1_chat_generate_request(
     return_logprobs = []
     logprob_start_lens = []
     top_logprobs_nums = []
+    return_sampled_probs = []
     modalities_list = []
 
     # NOTE: with openai API, the prompt's logprobs are always not computed
@@ -914,6 +915,7 @@ def v1_chat_generate_request(
         return_logprobs.append(request.logprobs)
         logprob_start_lens.append(-1)
         top_logprobs_nums.append(request.top_logprobs or 0)
+        return_sampled_probs.append(request.sampled_probs)
 
         sampling_params = {
             "temperature": request.temperature,
@@ -949,6 +951,7 @@ def v1_chat_generate_request(
         return_logprobs = return_logprobs[0]
         logprob_start_lens = logprob_start_lens[0]
         top_logprobs_nums = top_logprobs_nums[0]
+        return_sampled_probs = return_sampled_probs[0]
         modalities_list = modalities_list[0]
     else:
         if isinstance(input_ids[0], str):
@@ -961,6 +964,7 @@ def v1_chat_generate_request(
         image_data=image_data_list,
         sampling_params=sampling_params_list,
         return_logprob=return_logprobs,
+        return_sampled_prob=return_sampled_probs,
         logprob_start_len=logprob_start_lens,
         top_logprobs_num=top_logprobs_nums,
         stream=all_requests[0].stream,

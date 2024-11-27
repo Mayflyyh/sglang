@@ -571,6 +571,7 @@ class Scheduler:
         req.top_logprobs_num = recv_req.top_logprobs_num
         req.stream = recv_req.stream
         req.logprob_start_len = recv_req.logprob_start_len
+        req.return_sampled_prob = recv_req.return_sampled_prob
 
         if req.logprob_start_len == -1:
             # By default, only return the logprobs for output tokens
@@ -979,6 +980,7 @@ class Scheduler:
 
             # Check finish conditions
             logprob_pt = 0
+            sampled_probs_pt = 0
             for i, (req, next_token_id) in enumerate(zip(batch.reqs, next_token_ids)):
                 if req.is_retracted:
                     continue
@@ -1002,6 +1004,11 @@ class Scheduler:
                     if req.return_logprob:
                         logprob_pt += self.add_logprob_return_values(
                             i, req, logprob_pt, next_token_ids, logits_output
+                        )
+
+                    if req.return_sampled_prob:
+                        self.add_sampled_prob_return_values(
+                            i, req, next_token_ids, logits_output
                         )
 
                     if req.grammar is not None:
@@ -1047,6 +1054,7 @@ class Scheduler:
         if self.enable_overlap:
             logits_output, next_token_ids = self.tp_worker.resolve_batch_result(bid)
             next_token_logprobs = logits_output.next_token_logprobs
+            next_token_sampled_probs = logits_output.next_token_sampled_probs
         else:
             # Move next_token_ids and logprobs to cpu
             if batch.return_logprob:
@@ -1054,6 +1062,12 @@ class Scheduler:
                     torch.arange(len(next_token_ids), device=self.device),
                     next_token_ids,
                 ].tolist()
+            if batch.return_sampled_prob:
+                next_token_sampled_probs = logits_output.next_token_sampled_probs[
+                    torch.arange(len(next_token_ids), device=self.device),
+                    next_token_ids,
+                ].tolist()
+
             next_token_ids = next_token_ids.tolist()
 
         self.token_to_kv_pool.free_group_begin()
@@ -1081,7 +1095,10 @@ class Scheduler:
                 )
                 if req.top_logprobs_num > 0:
                     req.output_top_logprobs.append(logits_output.output_top_logprobs[i])
-
+            if req.return_sampled_prob:
+                req.output_token_sampled_probs.append(
+                    (next_token_sampled_probs[i], next_token_id)
+                )
             if req.grammar is not None:
                 req.grammar.accept_token(next_token_id)
 
@@ -1174,6 +1191,18 @@ class Scheduler:
 
         return num_input_logprobs
 
+    def add_sampled_prob_return_values(
+        self,
+        i: int,
+        req: Req,
+        next_token_ids: List[int],
+        output: LogitsProcessorOutput,
+    ):
+        """Attach sampled prob to the return values."""
+        req.output_token_sampled_probs.append(
+            (output.next_token_sampled_probs[i], next_token_ids[i])
+        )
+
     def stream_output(self, reqs: List[Req]):
         """Stream the output to detokenizer."""
         output_rids = []
@@ -1242,6 +1271,10 @@ class Scheduler:
                             req.input_top_logprobs,
                             req.output_top_logprobs,
                             req.normalized_prompt_logprob,
+                        )
+                    if req.return_sampled_prob:
+                        meta_info["output_token_sampled_probs"] = (
+                            req.output_token_sampled_probs
                         )
                     output_meta_info.append(meta_info)
                 else:  # embedding or reward model

@@ -13,6 +13,7 @@
 # ==============================================================================
 """ModelRunner runs the forward passes of the models."""
 
+import dataclasses
 import gc
 import importlib
 import importlib.resources
@@ -638,7 +639,7 @@ class ModelRunner:
 
     def sample(
         self, logits_output: LogitsProcessorOutput, forward_batch: ForwardBatch
-    ) -> torch.Tensor:
+    ) -> tuple[LogitsProcessorOutput, torch.Tensor]:
         sampling_info = forward_batch.sampling_info
         if sampling_info.sampling_info_done:
             # Overlap mode: the function update_regex_vocab_mask was executed
@@ -652,8 +653,12 @@ class ModelRunner:
         logits = self.apply_logits_bias(logits_output.next_token_logits, sampling_info)
 
         # Sample the next tokens.
-        next_token_ids = self.sampler(logits, sampling_info)
-        return next_token_ids
+        next_token_ids, probs = self.sampler(logits, sampling_info)
+        if sampling_info.return_sampled_prob:
+            logits_output = dataclasses.replace(
+                logits_output, next_token_sampled_probs=probs
+            )
+        return logits_output, next_token_ids
 
     def apply_logits_bias(self, logits: torch.Tensor, sampling_info: SamplingBatchInfo):
         # Apply logit_bias

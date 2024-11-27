@@ -47,6 +47,8 @@ class GenerateReqInput:
     top_logprobs_num: Optional[Union[List[int], int]] = None
     # Whether to detokenize tokens in text in the returned logprobs.
     return_text_in_logprobs: bool = False
+    # Whether to return sampled probs.
+    return_sampled_prob: Optional[Union[List[bool], bool]] = None
     # Whether to stream output.
     stream: bool = False
     # The modalities of the image data [image, multi-images, video]
@@ -196,6 +198,8 @@ class TokenizedGenerateReqInput:
     logprob_start_len: int
     # If return logprobs, the number of top logprobs to return at each position.
     top_logprobs_num: int
+    # Whether to return the sampled probs
+    return_sampled_prob: bool
     # Whether to stream output
     stream: bool
 

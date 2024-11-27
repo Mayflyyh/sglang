@@ -35,6 +35,7 @@ class Sampler(nn.Module):
             logits = logits.next_token_logits
 
         logits = logits.contiguous()
+        probs = None
 
         if self.use_nan_detectioin and torch.any(torch.isnan(logits)):
             logger.warning("Detected errors during sampling! NaN in the logits.")
@@ -79,18 +80,31 @@ class Sampler(nn.Module):
                     batch_next_token_ids = torch.zeros_like(batch_next_token_ids)
             elif global_server_args_dict["sampling_backend"] == "pytorch":
                 # A slower fallback implementation with torch native operations.
-                batch_next_token_ids = top_k_top_p_min_p_sampling_from_probs_torch(
-                    probs,
-                    sampling_info.top_ks,
-                    sampling_info.top_ps,
-                    sampling_info.min_ps,
+                batch_next_token_ids, sorted_probs_and_indices = (
+                    top_k_top_p_min_p_sampling_from_probs_torch(
+                        probs,
+                        sampling_info.top_ks,
+                        sampling_info.top_ps,
+                        sampling_info.min_ps,
+                    )
                 )
             else:
                 raise ValueError(
                     f"Invalid sampling backend: {global_server_args_dict['sampling_backend']}"
                 )
 
-        return batch_next_token_ids.to(torch.int32)
+        if sampling_info.return_sampled_prob:
+            if sampling_info.is_all_greedy:
+                probs = torch.softmax(logits, dim=-1)
+            else:
+                if global_server_args_dict["sampling_backend"] == "flashinfer":
+                    # TODO: Apply min_p processing to the probs.
+                    pass
+                elif global_server_args_dict["sampling_backend"] == "pytorch":
+                    probs_sort, probs_idx = sorted_probs_and_indices
+                    probs = torch.gather(probs_sort, dim=-1, index=probs_idx)
+
+        return batch_next_token_ids.to(torch.int32), probs
 
 
 def top_k_top_p_min_p_sampling_from_probs_torch(
@@ -112,4 +126,4 @@ def top_k_top_p_min_p_sampling_from_probs_torch(
     probs_sort.div_(probs_sort.max(dim=-1, keepdim=True)[0])
     sampled_index = torch.multinomial(probs_sort, num_samples=1)
     batch_next_token_ids = torch.gather(probs_idx, dim=1, index=sampled_index).view(-1)
-    return batch_next_token_ids
+    return batch_next_token_ids, (probs_sort, probs_idx)

@@ -32,6 +32,8 @@ class LogitsProcessorOutput:
     next_token_logits: torch.Tensor
     # The logprobs of the next tokens.     shape: [#seq, vocab_size]
     next_token_logprobs: torch.Tensor = None
+    # The probs of the next tokens after the sampling process.     shape: [#seq, vocab_size]
+    next_token_sampled_probs: torch.Tensor = None
 
     # The normlaized logprobs of prompts.  shape: [#seq]
     normalized_prompt_logprobs: torch.Tensor = None
@@ -51,6 +53,7 @@ class LogitsMetadata:
 
     return_logprob: bool = False
     return_top_logprob: bool = False
+    return_sampled_prob: bool = False
 
     extend_seq_lens: Optional[torch.Tensor] = None
     extend_seq_lens_cpu: Optional[List[int]] = None

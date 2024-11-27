@@ -230,6 +230,10 @@ class Req:
         # For retraction
         self.is_retracted = False
 
+        # For sampled probs
+        self.return_sampled_prob = False
+        self.output_token_sampled_probs = []
+
         # Logprobs (arguments)
         self.return_logprob = False
         self.logprob_start_len = 0
@@ -465,6 +469,9 @@ class ScheduleBatch:
     return_logprob: bool = False
     top_logprobs_nums: Optional[List[int]] = None
 
+    # For sampled prob
+    return_sampled_prob: bool = False
+
     # For extend and mixed chunekd prefill
     prefix_lens: List[int] = None
     extend_lens: List[int] = None
@@ -505,6 +512,7 @@ class ScheduleBatch:
             model_config=model_config,
             enable_overlap=enable_overlap,
             return_logprob=any(req.return_logprob for req in reqs),
+            return_sampled_prob=any(req.return_sampled_prob for req in reqs),
             has_stream=any(req.stream for req in reqs),
             has_grammar=any(req.grammar for req in reqs),
             device=req_to_token_pool.device,
@@ -971,6 +979,7 @@ class ScheduleBatch:
         self.seq_lens_sum = self.seq_lens.sum().item()
         self.output_ids = self.output_ids[new_indices]
         self.return_logprob = any(req.return_logprob for req in self.reqs)
+        return_sampled_prob = (any(req.return_sampled_prob for req in self.reqs),)
         if self.return_logprob:
             self.top_logprobs_nums = [self.top_logprobs_nums[i] for i in keep_indices]
         else:
@@ -1026,6 +1035,8 @@ class ScheduleBatch:
             else:
                 self.sampling_info.grammars = None
 
+            self.sampling_info.return_sampled_prob = self.return_sampled_prob
+
         global bid
         bid += 1
 
@@ -1040,6 +1051,7 @@ class ScheduleBatch:
             req_to_token_pool_records=self.req_to_token_pool.get_write_records(),
             return_logprob=self.return_logprob,
             top_logprobs_nums=self.top_logprobs_nums,
+            return_sampled_prob=self.return_sampled_prob,
             global_num_tokens=self.global_num_tokens,
             can_run_dp_cuda_graph=self.can_run_dp_cuda_graph,
             extend_num_tokens=self.extend_num_tokens,
@@ -1097,6 +1109,9 @@ class ModelWorkerBatch:
     # For logprob
     return_logprob: bool
     top_logprobs_nums: Optional[List[int]]
+
+    # For sampled probs
+    return_sampled_prob: bool
 
     # For DP attention
     global_num_tokens: Optional[List[int]]

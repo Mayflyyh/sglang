@@ -46,6 +46,9 @@ class SamplingBatchInfo:
     # Device
     device: str = "cuda"
 
+    # whether to return probabilities after sampling
+    return_sampled_prob: bool = False
+
     @classmethod
     def from_schedule_batch(
         cls, batch: ScheduleBatch, vocab_size: int, enable_overlap_schedule: bool

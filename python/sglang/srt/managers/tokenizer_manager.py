@@ -241,6 +241,7 @@ class TokenizerManager:
                 return_logprob,
                 logprob_start_len,
                 top_logprobs_num,
+                obj.return_sampled_prob,
                 obj.stream,
                 obj.lora_path,
                 session_id=session_id,
